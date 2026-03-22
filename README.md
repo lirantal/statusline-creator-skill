@@ -8,6 +8,8 @@
 
 A Claude Code agent skill that builds and extends **statuslines** — live status bars that display real-time data directly inside your Claude Code session after every response.
 
+Example of a Claude Code statusline built for the Snyk security scanner:
+
 ```
 🔒 snyk │ deps H:4 M:2 (6↑) │ code H:2 M:3 │ my-project · 5m ago ⟳
 ```
