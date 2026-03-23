@@ -266,7 +266,7 @@ echo '{}' | ./statusline.sh | cat -v
 
 ---
 
-## Snyk-specific notes
+## Example notes from a Snyk-specific security statusline
 
 **`snyk test` output** (JSON):
 - `ok` — boolean, true if no vulnerabilities
