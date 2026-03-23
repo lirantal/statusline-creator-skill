@@ -216,6 +216,88 @@ IFS='|' read -r TOTAL H M L FIXABLE < <(
 
 ---
 
+## Configuration env vars
+
+Expose every user-tunable knob as an env var. Standard naming convention:
+
+```bash
+# ── Configuration (override via shell profile or settings.json "env" block) ──
+TOOL_BIN="${TOOL_BIN:-tool}"                        # path/name of the CLI binary
+TOOL_STATUSLINE_TTL="${TOOL_STATUSLINE_TTL:-300}"   # seconds between background scans
+TOOL_SHOW_LOW="${TOOL_SHOW_LOW:-false}"             # show low-severity findings
+TOOL_SCAN_ARGS="${TOOL_SCAN_ARGS:-}"                # extra flags forwarded to scan command
+```
+
+Document these in the README as a table, and show *two* ways to set them — shell profile and `settings.json`:
+
+```json
+{
+  "statusLine": { "type": "command", "command": "/path/to/statusline.sh" },
+  "env": {
+    "TOOL_STATUSLINE_TTL": "600",
+    "TOOL_SHOW_LOW": "true"
+  }
+}
+```
+
+The `settings.json` route is useful for per-project configuration — users can commit a project-local settings file that activates specific scan args for that repo.
+
+---
+
+## Binary path pinning for version managers
+
+On macOS (and some Linux setups), tools installed via `nvm`, `fnm`, `rbenv`, `pyenv`, or Homebrew-managed shims are only added to `PATH` in **interactive** login shells. Background subshells spawned by the statusline (`( ... ) &`) run as non-interactive shells and do not source `.zshrc` / `.bashrc`, so `PATH` may not include the tool.
+
+**Symptoms:** statusline shows "initializing..." or auth error even though the tool works fine in a normal terminal. The `.err` file contains "command not found".
+
+**Fix — in the script:** always allow the user to pin the binary path explicitly:
+```bash
+TOOL_BIN="${TOOL_BIN:-tool}"   # user can set TOOL_BIN=$(which tool) in their profile
+```
+
+**Fix — in the README:** document this explicitly in the troubleshooting section:
+```
+**Tool not found in background scan**
+On macOS with nvm/fnm/rbenv, the tool may only be in PATH in interactive shells.
+Pin the path in your shell profile:
+  export TOOL_BIN=$(which tool)
+or set it in ~/.claude/settings.json under "env".
+```
+
+**Fix — in install.sh:** resolve and record the binary path at install time:
+```bash
+RESOLVED_BIN=$(which tool 2>/dev/null) || { echo "tool not found in PATH"; exit 1; }
+# use $RESOLVED_BIN when writing the env suggestion to the user
+```
+
+---
+
+## Auth check pattern for install scripts
+
+Every tool that requires authentication has two distinct commands:
+
+| Command | Purpose | Safe to run anytime? |
+|---|---|---|
+| Check (e.g. `tool whoami`, `gh auth status`) | Verify current auth state | Yes — read-only |
+| Do-auth (e.g. `tool auth`, `gh auth login`) | Perform authentication | **No** — may reset credentials if already authed |
+
+The installer should run the *check* command and only print instructions to run the *do-auth* command if it fails:
+
+```bash
+echo "Checking authentication..."
+if ! tool_check_auth_cmd &>/dev/null; then
+    echo "  ✗ not authenticated"
+    echo "  Run: tool_do_auth_cmd"
+    echo "  Then re-run this installer."
+    exit 1
+fi
+echo "  ✓ authenticated"
+```
+
+Never silently run the do-auth command unconditionally. On tools like Snyk, running `snyk auth` when already authenticated initiates a new OAuth flow that replaces the existing token — users who are already logged in lose their session.
+
+---
+
 ## Age formatting
 
 ```bash

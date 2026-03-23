@@ -38,9 +38,9 @@ The `statusline-creator` skill drives the entire workflow from idea to a working
 1. **Understands your data source** — asks what you want to show, inspects the CLI command and its output format, establishes all display states
 2. **Designs the output line** — plans every state the bar can be in (scanning, clean, findings, auth error, no supported files) before writing a line of code
 3. **Implements the script** — creates `statusline.sh` following a production-ready pattern: atomic locking, background scans, per-project cache keys, single-`jq`-call parsing, ANSI RGB colors
-4. **Installs into Claude Code** — updates `~/.claude/settings.json` non-destructively using `jq`
+4. **Installs into Claude Code** — generates an `install.sh` (with auth preflight and `--remove` support) and updates `~/.claude/settings.json` non-destructively using `jq`
 5. **Tests every state** — seeds the cache manually to verify each display state without waiting for a live scan
-6. **Writes documentation** — produces a README with an annotated output line and troubleshooting section
+6. **Writes documentation** — produces a README covering annotated output, configuration env vars, and troubleshooting (including the binary PATH pinning issue for version managers)
 
 ---
 
@@ -119,7 +119,9 @@ Supporting reference files:
 | File | Purpose |
 |---|---|
 | [`references/protocol.md`](./skills/statusline-creator/references/protocol.md) | Stdin JSON schema, `settings.json` format, ANSI output rules |
-| [`references/implementation-patterns.md`](./skills/statusline-creator/references/implementation-patterns.md) | Caching pattern, locking, state machine, `jq` recipes |
+| [`references/implementation-patterns.md`](./skills/statusline-creator/references/implementation-patterns.md) | Caching pattern, locking, state machine, `jq` recipes, env var conventions, binary path pinning, auth check pattern |
+| [`assets/install.sh.template`](./skills/statusline-creator/assets/install.sh.template) | Generic installer template — dependency checks, auth preflight, settings update, `--remove` mode |
+| [`assets/README.md.template`](./skills/statusline-creator/assets/README.md.template) | README skeleton with all standard sections pre-structured |
 
 ---
 

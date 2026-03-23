@@ -115,6 +115,22 @@ Critical rules:
 
 Make the script executable: `chmod +x statusline.sh`
 
+**Configuration env vars — naming convention:**
+Every user-tunable knob should be an env var with a sane default. Use a consistent naming prefix so vars are discoverable:
+
+```bash
+# In statusline.sh — configuration block at the top
+TOOL_BIN="${TOOL_BIN:-tool}"                   # path to the CLI binary
+TOOL_STATUSLINE_TTL="${TOOL_STATUSLINE_TTL:-300}"  # cache TTL in seconds
+TOOL_SHOW_LOW="${TOOL_SHOW_LOW:-false}"        # boolean display toggle
+TOOL_SCAN_ARGS="${TOOL_SCAN_ARGS:-}"           # extra args forwarded to scan command
+```
+
+Users can set these in their shell profile or in `~/.claude/settings.json` under `"env"` — document both paths. The `TOOL_BIN` var is especially important on macOS where tools installed via `nvm`, `fnm`, `rbenv`, or `pyenv` are only in PATH in interactive shells; background subshells run by the statusline may not inherit that PATH. Always document the `TOOL_BIN` override and recommend pinning it if the tool is installed via a version manager:
+```bash
+export TOOL_BIN=$(which tool)   # resolve once in your shell profile
+```
+
 **Done when:** The script runs without errors from `echo '{}' | ./statusline.sh` in the project directory.
 
 ---
@@ -139,6 +155,19 @@ jq --arg p "/absolute/path/to/statusline.sh" \
    ~/.claude/settings.json > ~/.claude/settings.json.tmp \
    && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
 ```
+
+**For a shareable tool, also generate an `install.sh`** alongside the statusline. See `assets/install.sh.template` for the standard structure. A good installer:
+1. Checks that required CLI tools are installed (with install hints if missing)
+2. Runs an **auth preflight** — verifies the tool is authenticated *before* touching settings
+3. Updates `~/.claude/settings.json` non-destructively using `jq`
+4. Supports `--remove` to cleanly uninstall
+5. Prints the env vars users can set to configure behavior
+
+**Auth preflight — important distinction:** there are two different commands for every authenticated tool:
+- A **check** command (e.g. `tool whoami`, `gh auth status`) — safe to run anytime; exit 0 = authenticated
+- A **do-auth** command (e.g. `tool auth`, `gh auth login`) — only run this if not authenticated; on some tools re-running when already authed resets or replaces credentials
+
+The installer should run the *check* command and only instruct the user to run the *do-auth* command if the check fails. Never silently run the auth command unconditionally.
 
 **Done when:** `cat ~/.claude/settings.json` shows the statusLine object with the correct absolute path.
 
@@ -194,9 +223,13 @@ Create a `README.md` covering:
 2. **Why it's useful** — the problem it solves for a developer, not a feature list
 3. **What scans/data sources run** — and why those specifically
 4. **Prerequisites** — tools required, accounts, authentication
-5. **Quick start** — clone → auth → `./install.sh`
-6. **Configuration** — table of env vars with defaults
-7. **Troubleshooting** — how to read the error log, force a cache refresh, fix auth
+5. **Quick start** — clone → auth check → `./install.sh` (three steps max)
+6. **Manual installation** — direct `settings.json` snippet for users who don't want the installer
+7. **Uninstall** — `./install.sh --remove` and how to clear the cache
+8. **Configuration** — table of env vars with defaults, and example of setting them via `settings.json` `"env"` block
+9. **Troubleshooting** — how to read the error log, force a cache refresh, fix auth; **include the binary PATH pinning note** for tools installed via version managers
+
+See `assets/README.md.template` for a ready-to-fill skeleton with all sections pre-structured.
 
 Annotate the output line token by token — users shouldn't have to guess what `H:4 M:2 (6↑)` means:
 

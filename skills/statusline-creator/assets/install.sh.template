@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# install.sh — installer for <TOOL_NAME> statusline for Claude Code
+#
+# Usage:
+#   ./install.sh           install or update
+#   ./install.sh --remove  remove from Claude Code settings
+#
+# Placeholders to fill in:
+#   TOOL_NAME          — short name used in messages (e.g. "snyk")
+#   TOOL_BIN_DEFAULT   — default binary name (e.g. "snyk", "trivy", "gh")
+#   TOOL_AUTH_CHECK    — command that exits 0 if authenticated (e.g. "snyk whoami --experimental")
+#   TOOL_AUTH_DO       — command to authenticate (e.g. "snyk auth") — shown in message, NOT run
+#   TOOL_MISSING_HINT  — install hint shown when binary is not found (e.g. "npm install -g snyk")
+#   STATUSLINE_SCRIPT  — relative path to statusline.sh (e.g. "statusline.sh")
+
+set -euo pipefail
+
+TOOL_NAME="<TOOL_NAME>"
+TOOL_BIN_DEFAULT="<TOOL_BIN_DEFAULT>"
+STATUSLINE_SCRIPT="$(cd "$(dirname "$0")" && pwd)/<STATUSLINE_SCRIPT>"
+SETTINGS_FILE="${HOME}/.claude/settings.json"
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+die()  { echo "  ✗ $*" >&2; exit 1; }
+info() { echo "  · $*"; }
+ok()   { echo "  ✓ $*"; }
+
+# ── Remove mode ───────────────────────────────────────────────────────────────
+
+if [[ "${1:-}" == "--remove" ]]; then
+    echo "Removing $TOOL_NAME statusline from Claude Code..."
+    if [[ ! -f "$SETTINGS_FILE" ]]; then
+        info "No settings file found — nothing to remove."
+        exit 0
+    fi
+    jq 'del(.statusLine)' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" \
+        && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+    ok "statusLine entry removed from $SETTINGS_FILE"
+    info "To also remove cached scan results:"
+    info "  rm -rf \"\${XDG_CACHE_HOME:-\$HOME/.cache}/${TOOL_NAME}-statusline\""
+    exit 0
+fi
+
+# ── Install ───────────────────────────────────────────────────────────────────
+
+echo "Installing $TOOL_NAME statusline for Claude Code..."
+echo ""
+
+# 1. Check script exists and is executable
+[[ -f "$STATUSLINE_SCRIPT" ]] || die "statusline script not found at $STATUSLINE_SCRIPT"
+chmod +x "$STATUSLINE_SCRIPT"
+ok "statusline.sh is executable"
+
+# 2. Check required dependencies
+echo ""
+echo "Checking dependencies..."
+
+## jq
+if ! command -v jq &>/dev/null; then
+    die "jq not found. Install it:
+    macOS:  brew install jq
+    Debian: sudo apt install jq
+    Alpine: apk add jq"
+fi
+ok "jq found ($(jq --version))"
+
+## Main tool binary
+TOOL_BIN="${TOOL_BIN:-$TOOL_BIN_DEFAULT}"
+if ! command -v "$TOOL_BIN" &>/dev/null; then
+    die "$TOOL_NAME CLI not found. Install it:
+    <TOOL_MISSING_HINT>
+    Then re-run this installer."
+fi
+ok "$TOOL_NAME CLI found ($TOOL_BIN)"
+
+# 3. Auth preflight — check only, never run the auth command automatically
+echo ""
+echo "Checking authentication..."
+if ! <TOOL_AUTH_CHECK> &>/dev/null; then
+    echo ""
+    die "$TOOL_NAME is not authenticated.
+    Run: <TOOL_AUTH_DO>
+    Then re-run this installer."
+fi
+ok "authenticated"
+
+# 4. Install into ~/.claude/settings.json
+echo ""
+echo "Configuring Claude Code settings..."
+
+mkdir -p "$(dirname "$SETTINGS_FILE")"
+
+# Create settings file if it doesn't exist
+if [[ ! -f "$SETTINGS_FILE" ]]; then
+    echo '{}' > "$SETTINGS_FILE"
+fi
+
+# Non-destructive update — preserves all other settings
+jq --arg p "$STATUSLINE_SCRIPT" \
+   '.statusLine = {"type": "command", "command": $p}' \
+   "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" \
+   && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+
+ok "statusLine configured in $SETTINGS_FILE"
+
+# 5. Done — print configuration hints
+echo ""
+echo "Installation complete. Restart Claude Code for the statusline to appear."
+echo ""
+echo "Configuration (set in your shell profile or in ~/.claude/settings.json under \"env\"):"
+echo "  TOOL_BIN                  Path to the $TOOL_NAME CLI (default: $TOOL_BIN_DEFAULT)"
+echo "  <TOOL_NAME_UPPER>_STATUSLINE_TTL   Seconds between scans (default: 300)"
+echo "  <TOOL_NAME_UPPER>_SHOW_LOW         Show low-severity issues (default: false)"
+echo "  <TOOL_NAME_UPPER>_SCAN_ARGS        Extra args passed to the scan command"
+echo ""
+echo "To uninstall:"
+echo "  ./install.sh --remove"

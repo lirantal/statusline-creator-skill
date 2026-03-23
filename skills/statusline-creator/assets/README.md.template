@@ -1,0 +1,233 @@
+# <EMOJI> <Tool Name> Statusline for Claude Code
+
+One-line description: what live data this statusline surfaces and why it's useful.
+
+## What it shows
+
+Here's the statusline as it appears in Claude Code:
+
+```
+<paste annotated example output here>
+```
+
+<!-- Include a screenshot if possible -->
+
+Reading left to right:
+
+```
+<label segment>
+```
+Description of the label.
+
+```
+<primary data segment>
+```
+**Primary segment** (`<scan command>`): what this segment shows.
+- `<token>` — what it means
+- `<token>` — what it means
+
+```
+<secondary data segment>
+```
+**Secondary segment** (if applicable).
+
+```
+<project · age>
+```
+Project name and scan freshness — the age shown is the oldest of all scan results.
+
+```
+⟳
+```
+A background scan is currently running; the display will update once it completes.
+
+---
+
+**Other states the line can show:**
+
+```
+<label> │ <segment> ✦ │ <project> · 2m
+```
+All scans came back clean — no issues found. `✦` shown in green.
+
+```
+<label> │ scanning... │ <project> ⟳
+```
+First run, or cache expired — scan in progress.
+
+```
+<label> │ no supported files │ <project>
+```
+No supported files found in this directory.
+
+```
+<label> │ ⚠ not authenticated  <check-auth-command>
+```
+CLI not authenticated — verify with `<check-auth-command>` (exit 0 = ok).
+
+---
+
+**Color coding:**
+- Color → meaning
+- Color → meaning
+
+## Why this is useful
+
+Explain the problem this solves for a developer actively coding with Claude. Focus on
+the workflow benefit (no context switching, always visible, zero latency), not a
+feature list.
+
+- **Benefit 1** — why this matters during active coding
+- **Benefit 2** — ...
+- **Benefit 3** — ...
+
+### Why background caching?
+
+`<scan command>` takes N–M seconds. Blocking Claude Code on every response would make
+it unusable. Instead:
+
+1. The script **always renders instantly** from the last cached result
+2. When the cache is stale (default: 5 minutes), a **background scan fires** without blocking
+3. The `⟳` spinner tells you a fresher result is on the way
+
+## What data is surfaced
+
+| Data point | Source field | Shown as |
+|---|---|---|
+| ... | ... | ... |
+
+## Prerequisites
+
+- [**Claude Code**](https://claude.ai/code) installed and authenticated
+- [**<Tool Name>**](<install URL>) — `<install command>`
+- [**jq**](https://jqlang.github.io/jq/) — `brew install jq` / `apt install jq`
+- **<Account/auth requirement>** — authenticate once with `<do-auth-command>`, then verify with `<check-auth-command>`
+
+## Quick start
+
+```bash
+# 1. Clone this repo
+git clone <repo-url>
+cd <repo-dir>
+
+# 2. Authenticate with <Tool Name> (if not already done)
+<do-auth-command>        # completes OAuth / login flow
+<check-auth-command>     # verify: exit 0 = authenticated
+
+# 3. Run the installer
+./install.sh
+```
+
+Restart Claude Code for the statusline to appear.
+
+## Manual installation
+
+If you prefer to configure manually, add this to `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "/absolute/path/to/statusline.sh"
+  }
+}
+```
+
+Make the script executable:
+
+```bash
+chmod +x /absolute/path/to/statusline.sh
+```
+
+## Uninstall
+
+```bash
+./install.sh --remove
+```
+
+To also remove cached scan results:
+
+```bash
+rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/<tool>-statusline"
+```
+
+## Configuration
+
+All options are controlled via environment variables. Set them in your shell profile
+(`~/.bashrc`, `~/.zshrc`) or in `~/.claude/settings.json` under `"env"`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `TOOL_BIN` | `<tool>` | Path to the CLI binary |
+| `TOOL_STATUSLINE_TTL` | `300` | Seconds between scans |
+| `TOOL_SHOW_LOW` | `false` | Include low-severity issues in the display |
+| `TOOL_SCAN_ARGS` | `""` | Extra arguments passed to the scan command |
+
+### Examples
+
+**Scan every 10 minutes:**
+```bash
+export TOOL_STATUSLINE_TTL=600
+```
+
+**Via `~/.claude/settings.json`:**
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "/path/to/statusline.sh"
+  },
+  "env": {
+    "TOOL_STATUSLINE_TTL": "600",
+    "TOOL_SHOW_LOW": "true"
+  }
+}
+```
+
+## Troubleshooting
+
+**Statusline shows "not authenticated"**
+```bash
+<check-auth-command>   # exit 0 = authenticated, non-zero = not
+<do-auth-command>      # run ONLY if not authenticated
+```
+> Note: on some tools, re-running the auth command when already authenticated resets
+> your credentials. Always check auth status before running the login command.
+
+**Statusline shows "initializing..." forever**
+```bash
+# Run the scan manually to check for errors
+<scan-command>
+
+# Check the error log
+cat "${XDG_CACHE_HOME:-$HOME/.cache}/<tool>-statusline/*.err"
+```
+
+**Tool not found in background scan**
+On macOS with `nvm`, `fnm`, `rbenv`, or similar version managers, the tool may only
+be in `PATH` in interactive shells. Background scans run in plain subshells and may
+not inherit that `PATH`. Fix:
+```bash
+export TOOL_BIN=$(which <tool>)   # resolve once in your shell profile
+```
+
+**Results are stale**
+```bash
+rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/<tool>-statusline/"
+```
+
+**jq not found**
+```bash
+brew install jq          # macOS
+sudo apt install jq      # Debian/Ubuntu
+apk add jq               # Alpine
+```
+
+## Cache details
+
+- **Location:** `~/.cache/<tool>-statusline/` (or `$XDG_CACHE_HOME/<tool>-statusline/`)
+- **Files per project** (keyed by a hash of the git root path):
+  - `{hash}.json` — last scan result
+  - `{hash}.err` — stderr from the last scan (useful for auth debugging)
+  - `{hash}.lock/` — atomic lock directory (present only while a scan is running)
+  - `{hash}.noscan` — sentinel written when no supported project was found (exit code 3)
