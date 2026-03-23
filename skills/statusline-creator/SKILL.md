@@ -181,12 +181,21 @@ jq --arg p "/absolute/path/to/statusline.sh" \
    && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
 ```
 
-**For a shareable tool, also generate an `install.sh`** alongside the statusline. See `assets/install.sh.template` for the standard structure. A good installer:
-1. Checks that required CLI tools are installed (with install hints if missing)
-2. Runs an **auth preflight** — verifies the tool is authenticated *before* touching settings
-3. Updates `~/.claude/settings.json` non-destructively using `jq`
-4. Supports `--remove` to cleanly uninstall
-5. Prints the env vars users can set to configure behavior
+**Done when:** `cat ~/.claude/settings.json` shows the statusLine object with the correct absolute path.
+
+---
+
+### Step 5: Create install.sh
+
+**Always create an `install.sh`** in the project root. This is not optional — every statusline needs one so users can install and uninstall it without manually editing JSON. Use `assets/install.sh.template` as the starting point and fill in the placeholders.
+
+A correct installer must:
+1. Use **colored output** — define `R`/`GREEN`/`YELLOW`/`RED`/`BOLD` ANSI variables and `ok()`/`info()`/`die()` helpers that use them; use `printf` not `echo`; print a bold tool name header at the start
+2. Check that required CLI tools are installed (with install hints if missing)
+3. Run an **auth preflight** — verify the tool is authenticated *before* touching settings
+4. Update `~/.claude/settings.json` non-destructively using `jq`
+5. Support `--remove` to cleanly uninstall
+6. Print the env vars users can set to configure behavior
 
 **Auth preflight — important distinction:** there are two different commands for every authenticated tool:
 - A **check** command (e.g. `tool whoami`, `gh auth status`) — safe to run anytime; exit 0 = authenticated
@@ -194,11 +203,13 @@ jq --arg p "/absolute/path/to/statusline.sh" \
 
 The installer should run the *check* command and only instruct the user to run the *do-auth* command if the check fails. Never silently run the auth command unconditionally.
 
-**Done when:** `cat ~/.claude/settings.json` shows the statusLine object with the correct absolute path.
+Make it executable: `chmod +x install.sh`
+
+**Done when:** `./install.sh` runs cleanly with colored output and `./install.sh --remove` cleanly removes the statusLine entry.
 
 ---
 
-### Step 5: Test every state
+### Step 6: Test every state
 
 Do not rely on the live statusline alone — seed the cache manually to exercise every state:
 
@@ -241,7 +252,7 @@ Repeat testing in the project directory where the data source is valid, and in a
 
 ---
 
-### Step 6: Write documentation
+### Step 7: Write documentation
 
 Create a `README.md` covering:
 1. **What it shows** — annotated output line explaining every token

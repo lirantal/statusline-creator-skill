@@ -20,16 +20,22 @@ TOOL_BIN_DEFAULT="<TOOL_BIN_DEFAULT>"
 STATUSLINE_SCRIPT="$(cd "$(dirname "$0")" && pwd)/<STATUSLINE_SCRIPT>"
 SETTINGS_FILE="${HOME}/.claude/settings.json"
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Colors ────────────────────────────────────────────────────────────────────
 
-die()  { echo "  ✗ $*" >&2; exit 1; }
-info() { echo "  · $*"; }
-ok()   { echo "  ✓ $*"; }
+R=$'\033[0m'
+GREEN=$'\033[32m'
+YELLOW=$'\033[33m'
+RED=$'\033[31m'
+BOLD=$'\033[1m'
+
+die()  { printf '%s✘%s  %s\n' "$RED"    "$R" "$*" >&2; exit 1; }
+info() { printf '%sℹ%s  %s\n' "$YELLOW" "$R" "$*"; }
+ok()   { printf '%s✔%s  %s\n' "$GREEN"  "$R" "$*"; }
 
 # ── Remove mode ───────────────────────────────────────────────────────────────
 
 if [[ "${1:-}" == "--remove" ]]; then
-    echo "Removing $TOOL_NAME statusline from Claude Code..."
+    printf '\n%s%s — Uninstaller%s\n\n' "$BOLD" "$TOOL_NAME" "$R"
     if [[ ! -f "$SETTINGS_FILE" ]]; then
         info "No settings file found — nothing to remove."
         exit 0
@@ -38,14 +44,15 @@ if [[ "${1:-}" == "--remove" ]]; then
         && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
     ok "statusLine entry removed from $SETTINGS_FILE"
     info "To also remove cached scan results:"
-    info "  rm -rf \"\${XDG_CACHE_HOME:-\$HOME/.cache}/${TOOL_NAME}-statusline\""
+    printf '    rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/%s-statusline"\n' "$TOOL_NAME"
+    printf '\n'
+    info "Restart Claude Code for the change to take effect."
     exit 0
 fi
 
 # ── Install ───────────────────────────────────────────────────────────────────
 
-echo "Installing $TOOL_NAME statusline for Claude Code..."
-echo ""
+printf '\n%s%s — Installer%s\n\n' "$BOLD" "$TOOL_NAME" "$R"
 
 # 1. Check script exists and is executable
 [[ -f "$STATUSLINE_SCRIPT" ]] || die "statusline script not found at $STATUSLINE_SCRIPT"
@@ -53,8 +60,7 @@ chmod +x "$STATUSLINE_SCRIPT"
 ok "statusline.sh is executable"
 
 # 2. Check required dependencies
-echo ""
-echo "Checking dependencies..."
+printf '\nChecking dependencies...\n'
 
 ## jq
 if ! command -v jq &>/dev/null; then
@@ -75,10 +81,9 @@ fi
 ok "$TOOL_NAME CLI found ($TOOL_BIN)"
 
 # 3. Auth preflight — check only, never run the auth command automatically
-echo ""
-echo "Checking authentication..."
+printf '\nChecking authentication...\n'
 if ! <TOOL_AUTH_CHECK> &>/dev/null; then
-    echo ""
+    printf '\n'
     die "$TOOL_NAME is not authenticated.
     Run: <TOOL_AUTH_DO>
     Then re-run this installer."
@@ -86,33 +91,29 @@ fi
 ok "authenticated"
 
 # 4. Install into ~/.claude/settings.json
-echo ""
-echo "Configuring Claude Code settings..."
+printf '\nConfiguring Claude Code settings...\n'
 
 mkdir -p "$(dirname "$SETTINGS_FILE")"
 
-# Create settings file if it doesn't exist
 if [[ ! -f "$SETTINGS_FILE" ]]; then
-    echo '{}' > "$SETTINGS_FILE"
+    jq -n --arg p "$STATUSLINE_SCRIPT" \
+        '{"statusLine": {"type": "command", "command": $p}}' > "$SETTINGS_FILE"
+    ok "Created $SETTINGS_FILE with statusLine"
+else
+    jq --arg p "$STATUSLINE_SCRIPT" \
+       '.statusLine = {"type": "command", "command": $p}' \
+       "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" \
+       && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+    ok "Updated $SETTINGS_FILE with statusLine"
 fi
 
-# Non-destructive update — preserves all other settings
-jq --arg p "$STATUSLINE_SCRIPT" \
-   '.statusLine = {"type": "command", "command": $p}' \
-   "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" \
-   && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
-
-ok "statusLine configured in $SETTINGS_FILE"
-
 # 5. Done — print configuration hints
-echo ""
-echo "Installation complete. Restart Claude Code for the statusline to appear."
-echo ""
-echo "Configuration (set in your shell profile or in ~/.claude/settings.json under \"env\"):"
-echo "  TOOL_BIN                  Path to the $TOOL_NAME CLI (default: $TOOL_BIN_DEFAULT)"
-echo "  <TOOL_NAME_UPPER>_STATUSLINE_TTL   Seconds between scans (default: 300)"
-echo "  <TOOL_NAME_UPPER>_SHOW_LOW         Show low-severity issues (default: false)"
-echo "  <TOOL_NAME_UPPER>_SCAN_ARGS        Extra args passed to the scan command"
-echo ""
-echo "To uninstall:"
-echo "  ./install.sh --remove"
+printf '\n%sDone!%s Restart Claude Code for the statusline to appear.\n\n' "$GREEN" "$R"
+
+printf 'Configuration (set in your shell profile or in ~/.claude/settings.json under "env"):\n'
+printf '  %-34s %s\n' "TOOL_BIN" "Path to the $TOOL_NAME CLI (default: $TOOL_BIN_DEFAULT)"
+printf '  %-34s %s\n' "<TOOL_NAME_UPPER>_STATUSLINE_TTL" "Seconds between scans (default: 300)"
+printf '  %-34s %s\n' "<TOOL_NAME_UPPER>_SHOW_LOW" "Show low-severity issues (default: false)"
+printf '  %-34s %s\n' "<TOOL_NAME_UPPER>_SCAN_ARGS" "Extra args passed to the scan command"
+printf '\n'
+printf 'To uninstall: %s./install.sh --remove%s\n\n' "$BOLD" "$R"
