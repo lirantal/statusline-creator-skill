@@ -29,9 +29,17 @@ A Claude Code statusline is a bash script that Claude runs after every response.
 reads session metadata on stdin and prints a colored line to stdout — giving you live,
 contextual data without leaving the session.
 
-The key design challenge: the statusline must render **instantly**, every time. Any
-slow operation (network call, CLI scan, API request) must run in the background and
-cache its result. The script always renders from cache; never from a live call.
+The key design challenge: the statusline must render **instantly**, every time.
+There are two valid execution models — choose based on measured speed:
+
+- **Inline execution**: run the command directly in the script. Only viable if the
+  operation reliably completes in under ~300ms (fast HTTP endpoints, local file reads,
+  cheap shell commands). Must be benchmarked first — never assume an operation is fast.
+- **Background + cache**: the script always renders from cache; a background process
+  refreshes it on a TTL. Required for any operation that is slow, variable, or
+  potentially blocking (CLI scanners, external APIs, network calls to remote services).
+
+**Before choosing a model, benchmark the operation** — see Step 1.
 
 Read `references/protocol.md` at the start of every session — it covers the stdin
 JSON schema, the settings.json format, and ANSI output rules. The authoritative
@@ -53,8 +61,13 @@ Ask the user what data source they want in their statusline. Common categories:
 - **Cloud/infra** — Kubernetes pod state, deploy status, environment
 
 For each data source, establish:
-1. What CLI command produces the data?
-2. How long does it take to run? (Under 1s = safe to run inline; over 1s = must cache)
+1. What CLI command or HTTP request produces the data?
+2. **Benchmark its actual runtime** — run it 3 times and record the wall-clock time:
+   ```bash
+   time <command>   # run 3× and note the range
+   ```
+   - Under ~300ms consistently → inline execution is viable
+   - Over ~300ms, variable, or potentially blocking → use background + cache
 3. What output format does it produce? (JSON, plain text, exit code only?)
 4. What states should the statusline show? (clean, issues found, scanning, unavailable, auth error)
 
@@ -93,8 +106,18 @@ Use ANSI RGB colors. Standard palette for security tools (see `references/implem
 
 ### Step 3: Implement the script
 
-Create `statusline.sh` in the project root. Follow this structure (see `references/implementation-patterns.md` for full patterns):
+Create `statusline.sh` in the project root. The structure depends on the execution
+model chosen in Step 1 (based on the benchmark results).
 
+**If using inline execution** (operation benchmarked at <300ms):
+1. **Configuration block** — env vars with defaults (`TOOL_BIN`, display toggles)
+2. **Color constants** — define all ANSI codes as variables; never inline raw escapes
+3. **Read stdin** — `SESSION=$(cat)` — captures Claude's JSON; parse fields as needed
+4. **Run the operation directly** — execute the command and capture its output/exit code
+5. **Build segment functions** — one per data source; handle unavailable/auth error states
+6. **Compose final output** — `printf` the assembled line with separators
+
+**If using background + cache** (operation benchmarked at >300ms or variable):
 1. **Configuration block** — env vars with defaults (`TOOL_BIN`, `CACHE_TTL`, display toggles)
 2. **Color constants** — define all ANSI codes as variables; never inline raw escapes
 3. **Read stdin** — `SESSION=$(cat)` — captures Claude's JSON; parse fields as needed
@@ -105,6 +128,8 @@ Create `statusline.sh` in the project root. Follow this structure (see `referenc
 8. **Trigger stale scans** — compare age to TTL; call trigger functions
 9. **Build segment functions** — one per data source; check cache/noscan/lock states and return the formatted string for that segment
 10. **Compose final output** — `printf` the assembled line with separators
+
+See `references/implementation-patterns.md` for full patterns for both models.
 
 Critical rules:
 - Use `|| exit_code=$?` to capture exit codes — never `|| true`, which loses them
