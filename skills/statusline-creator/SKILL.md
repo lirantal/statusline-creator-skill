@@ -48,6 +48,9 @@ https://code.claude.com/docs/en/statusline.md — check it for new fields or beh
 not yet reflected in the reference files.
 Read `references/implementation-patterns.md` when writing or debugging the script —
 it covers the caching pattern, exit code handling, state machine, and jq recipes.
+Read `references/ota-updates.md` if the user wants to distribute their statusline
+to others with automatic updates — it covers the SessionStart hook pattern,
+SHA256 checksum verification, atomic apply with rollback, and the release workflow.
 
 ---
 
