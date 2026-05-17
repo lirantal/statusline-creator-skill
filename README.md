@@ -192,6 +192,10 @@ cat ~/.cache/<tool>-statusline/*.err
 
 ---
 
+## Contributing
+
+Please consult [CONTRIBUTING](./CONTRIBUTING.md) for guidelines on contributing to this project.
+
 ## Author
 
 **Liran Tal** — [@lirantal](https://github.com/lirantal)
